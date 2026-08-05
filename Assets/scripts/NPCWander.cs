@@ -1,96 +1,94 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.AI;
 
 [RequireComponent(typeof(NavMeshAgent))]
-public class NPCWander : MonoBehaviour
+public class SimpleSidewalkWalk : MonoBehaviour
 {
-    [Header("Wander Settings")]
-    [SerializeField] private float wanderRadius = 8f;
-    [SerializeField] private float minWaitTime = 2f;
-    [SerializeField] private float maxWaitTime = 5f;
-
-    [Header("Stuck Prevention")]
-    [SerializeField] private float maxStuckTime = 4f; // Reset target if blocked too long
+    [Header("Movement")]
+    public float speed = 1.3f;
+    public float turnSpeed = 4f;
+    public float checkDistance = 6f;
+    public float pauseTime = 1.5f;
 
     private NavMeshAgent agent;
-    private Animator animator;
-    private float waitTimer;
-    private float currentWaitTime;
-    private float stuckTimer;
-    private Vector3 lastPosition;
+    private bool isTurning = false;
 
     void Start()
     {
         agent = GetComponent<NavMeshAgent>();
-        animator = GetComponent<Animator>();
-
-        // Enable auto-braking so they slow down smoothly near destination
-        agent.autoBraking = true;
+        agent.speed = speed;
         
-        SetNewDestination();
+        // Turn off automatic rotation so we can blend turns smoothly
+        agent.updateRotation = false;
+
+        SetNextPath();
     }
 
     void Update()
     {
-        // 1. Check if NPC reached destination
-        if (!agent.pathPending && agent.hasPath)
+        // Smoothly rotate character toward actual movement direction
+        if (agent.velocity.sqrMagnitude > 0.05f)
         {
-            if (agent.remainingDistance <= agent.stoppingDistance + 0.2f)
-            {
-                waitTimer += Time.deltaTime;
-
-                if (waitTimer >= currentWaitTime)
-                {
-                    SetNewDestination();
-                    waitTimer = 0f;
-                }
-            }
+            Vector3 dir = agent.velocity.normalized;
+            Quaternion targetRot = Quaternion.LookRotation(new Vector3(dir.x, 0, dir.z));
+            transform.rotation = Quaternion.Slerp(transform.rotation, targetRot, Time.deltaTime * turnSpeed);
         }
 
-        // 2. Prevent walking into walls forever (Stuck Detection)
-        if (Vector3.Distance(transform.position, lastPosition) < 0.05f && agent.hasPath)
+        // Detect reaching the end of the path OR hitting a boundary edge (walking on spot)
+        if (!isTurning && (ReachedEnd() || IsStuck()))
         {
-            stuckTimer += Time.deltaTime;
-            if (stuckTimer >= maxStuckTime)
-            {
-                SetNewDestination(); // Reset destination if stuck at a fence/wall
-                stuckTimer = 0f;
-            }
-        }
-        else
-        {
-            stuckTimer = 0f;
-        }
-        lastPosition = transform.position;
-
-        // 3. Smooth animation speed transfer
-        if (animator != null)
-        {
-            // Read agent's real movement speed
-            float targetSpeed = agent.velocity.magnitude;
-            
-            // Send to animator (use DampTime for smooth acceleration/deceleration)
-            animator.SetFloat("Speed", targetSpeed, 0.15f, Time.deltaTime);
+            StartCoroutine(TurnAround());
         }
     }
 
-    void SetNewDestination()
+    bool ReachedEnd()
     {
-        for (int i = 0; i < 30; i++) // Try up to 30 times to find a valid open spot
-        {
-            Vector3 randomDirection = Random.insideUnitSphere * wanderRadius;
-            randomDirection += transform.position;
+        return !agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.3f;
+    }
 
-            NavMeshHit hit;
-            if (NavMesh.SamplePosition(randomDirection, out hit, wanderRadius, NavMesh.AllAreas))
+    bool IsStuck()
+    {
+        // Detects if character stopped moving forward while trying to walk
+        return !agent.pathPending && agent.hasPath && agent.velocity.sqrMagnitude < 0.01f;
+    }
+
+    IEnumerator TurnAround()
+    {
+        isTurning = true;
+
+        // Stop instantly so they don't run against the wall
+        agent.isStopped = true;
+        agent.ResetPath();
+
+        // Human pause before turning
+        yield return new WaitForSeconds(pauseTime);
+
+        // Turn back onto the sidewalk
+        SetNextPath();
+
+        agent.isStopped = false;
+        isTurning = false;
+    }
+
+    void SetNextPath()
+    {
+        // Raycast ahead on the NavMesh to check if the path hits an unwalkable edge
+        Vector3 forwardTarget = transform.position + (transform.forward * checkDistance);
+        NavMeshHit hit;
+
+        if (!NavMesh.Raycast(transform.position, forwardTarget, out hit, NavMesh.AllAreas))
+        {
+            // Clear path ahead, keep walking forward
+            agent.SetDestination(forwardTarget);
+        }
+        else
+        {
+            // Hitting an edge/wall ahead: turn 180 degrees back into open space
+            Vector3 backTarget = transform.position - (transform.forward * checkDistance);
+            if (NavMesh.SamplePosition(backTarget, out hit, checkDistance, NavMesh.AllAreas))
             {
-                // Ensure there is a clear line of sight to the destination (no walls in between)
-                if (!NavMesh.Raycast(transform.position, hit.position, out NavMeshHit rayHit, NavMesh.AllAreas))
-                {
-                    agent.SetDestination(hit.position);
-                    currentWaitTime = Random.Range(minWaitTime, maxWaitTime);
-                    return;
-                }
+                agent.SetDestination(hit.position);
             }
         }
     }
