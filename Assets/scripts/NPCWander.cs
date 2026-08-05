@@ -1,95 +1,61 @@
-using System.Collections;
 using UnityEngine;
 using UnityEngine.AI;
 
 [RequireComponent(typeof(NavMeshAgent))]
-public class SimpleSidewalkWalk : MonoBehaviour
+public class NaturalNavMeshWanderer : MonoBehaviour
 {
-    [Header("Movement")]
-    public float speed = 1.3f;
-    public float turnSpeed = 4f;
-    public float checkDistance = 6f;
-    public float pauseTime = 1.5f;
+    [Header("Wander Settings")]
+    [Tooltip("How far forward the NPC looks for a next target location.")]
+    public float forwardDistance = 12f;
+
+    [Tooltip("Maximum angle (in degrees) to turn left or right when picking the next point.")]
+    public float maxTurnAngle = 45f;
 
     private NavMeshAgent agent;
-    private bool isTurning = false;
 
     void Start()
     {
         agent = GetComponent<NavMeshAgent>();
-        agent.speed = speed;
-        
-        // Turn off automatic rotation so we can blend turns smoothly
-        agent.updateRotation = false;
 
-        SetNextPath();
+        // Enforce smooth forward-facing rotation
+        agent.updateRotation = true;
+        
+        // High quality avoidance so NPCs smoothly step around each other
+        agent.obstacleAvoidanceType = ObstacleAvoidanceType.HighQualityObstacleAvoidance;
+
+        // Pick the first forward destination
+        SetNextForwardDestination();
     }
 
     void Update()
     {
-        // Smoothly rotate character toward actual movement direction
-        if (agent.velocity.sqrMagnitude > 0.05f)
+        // When the NPC gets close to its current goal, pick a new forward point immediately
+        if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 1f)
         {
-            Vector3 dir = agent.velocity.normalized;
-            Quaternion targetRot = Quaternion.LookRotation(new Vector3(dir.x, 0, dir.z));
-            transform.rotation = Quaternion.Slerp(transform.rotation, targetRot, Time.deltaTime * turnSpeed);
-        }
-
-        // Detect reaching the end of the path OR hitting a boundary edge (walking on spot)
-        if (!isTurning && (ReachedEnd() || IsStuck()))
-        {
-            StartCoroutine(TurnAround());
+            SetNextForwardDestination();
         }
     }
 
-    bool ReachedEnd()
+    void SetNextForwardDestination()
     {
-        return !agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.3f;
-    }
+        // 1. Pick a random angle within a forward-facing cone (e.g. -45° to +45°)
+        float randomAngle = Random.Range(-maxTurnAngle, maxTurnAngle);
+        
+        // 2. Calculate direction vector relative to where the character is currently facing
+        Vector3 forwardDir = Quaternion.Euler(0, randomAngle, 0) * transform.forward;
+        Vector3 targetPosition = transform.position + forwardDir * forwardDistance;
 
-    bool IsStuck()
-    {
-        // Detects if character stopped moving forward while trying to walk
-        return !agent.pathPending && agent.hasPath && agent.velocity.sqrMagnitude < 0.01f;
-    }
-
-    IEnumerator TurnAround()
-    {
-        isTurning = true;
-
-        // Stop instantly so they don't run against the wall
-        agent.isStopped = true;
-        agent.ResetPath();
-
-        // Human pause before turning
-        yield return new WaitForSeconds(pauseTime);
-
-        // Turn back onto the sidewalk
-        SetNextPath();
-
-        agent.isStopped = false;
-        isTurning = false;
-    }
-
-    void SetNextPath()
-    {
-        // Raycast ahead on the NavMesh to check if the path hits an unwalkable edge
-        Vector3 forwardTarget = transform.position + (transform.forward * checkDistance);
+        // 3. Find a valid NavMesh point near that forward position
         NavMeshHit hit;
-
-        if (!NavMesh.Raycast(transform.position, forwardTarget, out hit, NavMesh.AllAreas))
+        if (NavMesh.SamplePosition(targetPosition, out hit, forwardDistance, NavMesh.AllAreas))
         {
-            // Clear path ahead, keep walking forward
-            agent.SetDestination(forwardTarget);
+            agent.SetDestination(hit.position);
         }
         else
         {
-            // Hitting an edge/wall ahead: turn 180 degrees back into open space
-            Vector3 backTarget = transform.position - (transform.forward * checkDistance);
-            if (NavMesh.SamplePosition(backTarget, out hit, checkDistance, NavMesh.AllAreas))
-            {
-                agent.SetDestination(hit.position);
-            }
+            // If hitting an edge or boundary, turn 180° around and continue forward
+            transform.Rotate(0, 180f, 0);
+            agent.SetDestination(transform.position + transform.forward * forwardDistance);
         }
     }
 }
