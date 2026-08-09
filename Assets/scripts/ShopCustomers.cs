@@ -9,7 +9,7 @@ public class ShopCustomers : MonoBehaviour
     [Tooltip("Main doorway position where the customer pauses for the automatic door.")]
     public Transform mainDoorPoint;
 
-    [Tooltip("Shelf or aisle location the customer browses.")]
+    [Tooltip("Shelf or item display model the customer browses.")]
     public Transform shelfPoint;
 
     [Tooltip("Cashier or self-checkout location.")]
@@ -22,11 +22,12 @@ public class ShopCustomers : MonoBehaviour
     [Tooltip("Time spent waiting for the automatic door to open.")]
     public float doorWaitTime = 1.0f;
 
-    [Tooltip("Minimum time spent in the shop browsing.")]
-    public float minStoreTime = 3.0f;
+    [Header("Browsing Pause Range")]
+    [Tooltip("Minimum wait time when approaching a display model.")]
+    public float minBrowseTime = 2.0f;
 
-    [Tooltip("Maximum time spent in the shop browsing.")]
-    public float maxStoreTime = 15.0f;
+    [Tooltip("Maximum wait time when approaching a display model.")]
+    public float maxBrowseTime = 15.0f;
 
     [Tooltip("Time spent at the checkout counter.")]
     public float checkoutWaitTime = 3.0f;
@@ -37,16 +38,16 @@ public class ShopCustomers : MonoBehaviour
     {
         agent = GetComponent<NavMeshAgent>();
 
-        // Set realistic physical dimensions and obstacle avoidance properties
+        // Realistic agent physical dimensions & avoidance settings
         agent.radius = 0.35f;
         agent.height = 1.8f;
         agent.obstacleAvoidanceType = ObstacleAvoidanceType.HighQualityObstacleAvoidance;
-        agent.avoidancePriority = Random.Range(30, 60); // Prevents deadlocks when NPCs cross paths
+        agent.avoidancePriority = Random.Range(30, 60);
     }
 
     private void Start()
     {
-        // Give each customer a slightly different walk speed for natural movement
+        // Random walking speed for varied customer movement
         agent.speed = Random.Range(1.3f, 1.8f);
 
         StartCoroutine(CustomerRoutine());
@@ -54,63 +55,55 @@ public class ShopCustomers : MonoBehaviour
 
     private IEnumerator CustomerRoutine()
     {
-        // 1. Walk to the shop entrance & pause for door
+        // 1. Walk to entrance & wait for auto door
         if (mainDoorPoint != null)
         {
             yield return MoveToDestination(mainDoorPoint.position);
             yield return new WaitForSeconds(doorWaitTime);
         }
 
-        // 2. Walk into the store to browse the shelf
+        // 2. Walk to display model / shelf & pause realistically
         if (shelfPoint != null)
         {
             yield return MoveToDestination(shelfPoint.position);
 
-            // Turn NPC to face the shelf's forward direction
+            // Rotate character to face the display model
             yield return FaceDirection(shelfPoint.forward);
 
-            // Browse for a random time between 3 and 15 seconds
-            float shopDuration = Random.Range(minStoreTime, maxStoreTime);
-            yield return new WaitForSeconds(shopDuration);
+            // Pause for a random time between 2 and 15 seconds
+            float browseTime = Random.Range(minBrowseTime, maxBrowseTime);
+            yield return new WaitForSeconds(browseTime);
         }
 
-        // 3. Approach the cashier or self-checkout
+        // 3. Move to checkout
         if (checkoutPoint != null)
         {
             yield return MoveToDestination(checkoutPoint.position);
-
-            // Turn NPC to face the counter/register
             yield return FaceDirection(checkoutPoint.forward);
-
-            // Pay / wait at checkout for 3 seconds
             yield return new WaitForSeconds(checkoutWaitTime);
         }
 
-        // 4. Head back out through the main doorway
+        // 4. Exit through main doorway
         if (mainDoorPoint != null)
         {
             yield return MoveToDestination(mainDoorPoint.position);
             yield return new WaitForSeconds(doorWaitTime);
         }
 
-        // 5. Walk to the outdoor despawn point
+        // 5. Walk outside and despawn
         if (finalDespawnPoint != null)
         {
             yield return MoveToDestination(finalDespawnPoint.position);
         }
 
-        // Customer lifecycle complete
         Destroy(gameObject);
     }
 
     private IEnumerator MoveToDestination(Vector3 targetPosition)
     {
         agent.SetDestination(targetPosition);
-
-        // Wait until path calculation is finished
         yield return new WaitUntil(() => !agent.pathPending);
 
-        // Walk until destination is reached
         while (agent.remainingDistance > agent.stoppingDistance)
         {
             yield return null;
@@ -124,7 +117,6 @@ public class ShopCustomers : MonoBehaviour
         Quaternion targetRotation = Quaternion.LookRotation(forwardDirection);
         float time = 0f;
 
-        // Smoothly rotate character over 0.5 seconds
         while (time < 0.5f)
         {
             transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, time / 0.5f);
