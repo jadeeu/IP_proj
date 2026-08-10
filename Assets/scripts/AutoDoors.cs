@@ -2,46 +2,58 @@ using UnityEngine;
 
 public class AutoDoors : MonoBehaviour
 {
-    [Header("Door Setup")]
-    public Transform doorMesh;
-    public Vector3 openOffset = new Vector3(2f, 0, 0); // Direction to slide
-    public float speed = 3.0f;
-    public string targetTag = "NPC";
+    [Header("Door Leaves")]
+    public Transform leftDoor;
+    public Transform rightDoor;
 
-    private Vector3 closedPosition;
-    private Vector3 openPosition;
-    private int npcCount = 0;
+    [Header("Settings")]
+    public float slideDistance = 1.5f; // How far doors move apart
+    public float openSpeed = 3.0f;     // Speed of opening/closing
 
-    private void Start()
+    private Vector3 leftClosedPos;
+    private Vector3 rightClosedPos;
+    private Vector3 leftOpenPos;
+    private Vector3 rightOpenPos;
+
+    private bool isOpen = false;
+
+    void Start()
     {
-        if (doorMesh != null)
-        {
-            closedPosition = doorMesh.localPosition;
-            openPosition = closedPosition + openOffset;
-        }
+        // Save initial closed positions (local position)
+        if (leftDoor) leftClosedPos = leftDoor.localPosition;
+        if (rightDoor) rightClosedPos = rightDoor.localPosition;
+
+        // Calculate open positions along local X axis
+        if (leftDoor) leftOpenPos = leftClosedPos + Vector3.left * slideDistance;
+        if (rightDoor) rightOpenPos = rightClosedPos + Vector3.right * slideDistance;
     }
 
-    private void Update()
+    void Update()
     {
-        if (doorMesh == null) return;
+        Vector3 targetLeft = isOpen ? leftOpenPos : leftClosedPos;
+        Vector3 targetRight = isOpen ? rightOpenPos : rightClosedPos;
 
-        Vector3 targetPos = (npcCount > 0) ? openPosition : closedPosition;
-        doorMesh.localPosition = Vector3.Lerp(doorMesh.localPosition, targetPos, Time.deltaTime * speed);
+        if (leftDoor)
+            leftDoor.localPosition = Vector3.Lerp(leftDoor.localPosition, targetLeft, Time.deltaTime * openSpeed);
+
+        if (rightDoor)
+            rightDoor.localPosition = Vector3.Lerp(rightDoor.localPosition, targetRight, Time.deltaTime * openSpeed);
     }
 
     private void OnTriggerEnter(Collider other)
     {
-        if (other.CompareTag(targetTag) || other.CompareTag("Player"))
+        // Detect player or NPCs
+        if (other.CompareTag("NPC") || other.CompareTag("Player"))
         {
-            npcCount++;
+            isOpen = true;
         }
     }
 
     private void OnTriggerExit(Collider other)
     {
-        if (other.CompareTag(targetTag) || other.CompareTag("Player"))
+        if (other.CompareTag("NPC") || other.CompareTag("Player"))
         {
-            npcCount = Mathf.Max(0, npcCount - 1);
+            isOpen = false;
         }
     }
 }
