@@ -6,7 +6,7 @@ using UnityEngine.AI;
 public class ShopCustomers : MonoBehaviour
 {
     [Header("Navigation Waypoints")]
-    [Tooltip("Main doorway position where the customer pauses for the automatic door.")]
+    [Tooltip("Main doorway position the customer walks through.")]
     public Transform mainDoorPoint;
 
     [Tooltip("Shelf or item display model the customer browses.")]
@@ -17,10 +17,6 @@ public class ShopCustomers : MonoBehaviour
 
     [Tooltip("Point outside where the customer walks to before despawning.")]
     public Transform finalDespawnPoint;
-
-    [Header("Timing Settings")]
-    [Tooltip("Time spent waiting for the automatic door to open.")]
-    public float doorWaitTime = 1.0f;
 
     [Header("Browsing Pause Range")]
     [Tooltip("Minimum wait time when approaching a display model.")]
@@ -33,12 +29,13 @@ public class ShopCustomers : MonoBehaviour
     public float checkoutWaitTime = 3.0f;
 
     private NavMeshAgent agent;
+    private Animator animator;
 
     private void Awake()
     {
         agent = GetComponent<NavMeshAgent>();
+        animator = GetComponent<Animator>();
 
-        // Realistic agent physical dimensions & avoidance settings
         agent.radius = 0.35f;
         agent.height = 1.8f;
         agent.obstacleAvoidanceType = ObstacleAvoidanceType.HighQualityObstacleAvoidance;
@@ -47,32 +44,36 @@ public class ShopCustomers : MonoBehaviour
 
     private void Start()
     {
-        // Random walking speed for varied customer movement
         agent.speed = Random.Range(1.3f, 1.8f);
-
         StartCoroutine(CustomerRoutine());
+    }
+
+    private void Update()
+    {
+        // Keeps walking/idle animation in sync with speed
+        if (animator != null && agent != null)
+        {
+            float currentSpeed = agent.velocity.magnitude;
+            animator.SetFloat("Speed", currentSpeed);
+        }
     }
 
     private IEnumerator CustomerRoutine()
     {
-        // 1. Walk to entrance & wait for auto door
+        // 1. Walk through main entrance directly
         if (mainDoorPoint != null)
         {
             yield return MoveToDestination(mainDoorPoint.position);
-            yield return new WaitForSeconds(doorWaitTime);
         }
 
-        // 2. Walk to display model / shelf & pause realistically
+        // 2. Walk to display model / shelf & pause to browse
         if (shelfPoint != null)
         {
             yield return MoveToDestination(shelfPoint.position);
-
-            // Rotate character to face the display model
             yield return FaceDirection(shelfPoint.forward);
 
-            // Pause for a random time between 2 and 15 seconds
             float browseTime = Random.Range(minBrowseTime, maxBrowseTime);
-            yield return new WaitForSeconds(browseTime);
+            yield return PauseMovement(browseTime);
         }
 
         // 3. Move to checkout
@@ -80,14 +81,13 @@ public class ShopCustomers : MonoBehaviour
         {
             yield return MoveToDestination(checkoutPoint.position);
             yield return FaceDirection(checkoutPoint.forward);
-            yield return new WaitForSeconds(checkoutWaitTime);
+            yield return PauseMovement(checkoutWaitTime);
         }
 
-        // 4. Exit through main doorway
+        // 4. Exit through main doorway directly
         if (mainDoorPoint != null)
         {
             yield return MoveToDestination(mainDoorPoint.position);
-            yield return new WaitForSeconds(doorWaitTime);
         }
 
         // 5. Walk outside and despawn
@@ -101,13 +101,25 @@ public class ShopCustomers : MonoBehaviour
 
     private IEnumerator MoveToDestination(Vector3 targetPosition)
     {
+        agent.isStopped = false;
         agent.SetDestination(targetPosition);
+
         yield return new WaitUntil(() => !agent.pathPending);
 
         while (agent.remainingDistance > agent.stoppingDistance)
         {
             yield return null;
         }
+    }
+
+    private IEnumerator PauseMovement(float seconds)
+    {
+        agent.isStopped = true;
+        agent.velocity = Vector3.zero; // Stops walking on the spot when paused at shelves/checkout
+
+        yield return new WaitForSeconds(seconds);
+
+        agent.isStopped = false;
     }
 
     private IEnumerator FaceDirection(Vector3 forwardDirection)
