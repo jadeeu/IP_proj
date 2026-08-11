@@ -12,6 +12,5 @@ public class GameManager : MonoBehaviour
     public void CarHit()
     {
         Debug.Log("Player was hit by a car!");
-        // TODO: deduct points, trigger near-miss effect, etc.
     }
 }
