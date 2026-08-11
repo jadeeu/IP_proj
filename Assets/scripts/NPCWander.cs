@@ -17,7 +17,6 @@ public class NaturalNavMeshWanderer : MonoBehaviour
     {
         agent = GetComponent<NavMeshAgent>();
 
-        // Enforce smooth forward-facing rotation
         agent.updateRotation = true;
         
         // High quality avoidance so NPCs smoothly step around each other

@@ -6,7 +6,6 @@ public class TriggerTeleport : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        // Check if the object entering the trigger has the "Player" tag
         if (other.CompareTag("Player"))
         {
             CharacterController cc = other.GetComponent<CharacterController>();
