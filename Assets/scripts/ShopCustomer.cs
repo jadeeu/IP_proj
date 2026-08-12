@@ -2,314 +2,145 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
+using TMPro;
 
 [RequireComponent(typeof(NavMeshAgent))]
-public class CustomerAI : MonoBehaviour
+public class ShopCustomer : MonoBehaviour
 {
-    public enum CustomerState
-    {
-        Entering,
-        GrabbingBasket,
-        Shopping,
-        HeadingToCheckout,
-        Paying,
-        Exiting
-    }
-
-    [Header("Current State")]
-    public CustomerState currentState;
-
-    [Header("Store Locations")]
-    [Tooltip("Waypoints in the aisles where customers stop to look at items.")]
-    public List<Transform> shoppingWaypoints = new List<Transform>();
+    [Header("Waypoints & Locations")]
+    [Tooltip("Assign your shopping area wayfinder meshes/transforms here.")]
+    public Transform[] wayfinders;
     
-    [Tooltip("Point near entrance where baskets are stacked on the ground.")]
-    public Transform basketStackPoint;
+    [Tooltip("The cashier counter operated by the player.")]
+    public Transform playerCashier;
     
-    [Tooltip("Point outside the doors where customers exit.")]
+    [Tooltip("The self-checkout counter.")]
+    public Transform selfCheckout;
+    
+    [Tooltip("Where the customer walks to leave the store before being destroyed.")]
     public Transform exitPoint;
 
-    [Header("Checkout System")]
-    [Tooltip("Assign the CashierQueue component on your Player Cashier Counter.")]
-    public CashierQueue playerCashierQueue;
+    [Header("UI / Money Visual")]
+    [Tooltip("Prefab containing a TextMeshPro component for floating money FX.")]
+    public GameObject moneyPopupPrefab;
     
-    [Tooltip("Self-checkout counter targets if player cashier queue is full (> 2).")]
-    public List<Transform> selfCheckoutCounters = new List<Transform>();
+    [Tooltip("Position above the head where money pops up.")]
+    public Transform headTransform;
 
-    [Header("Basket Setup")]
-    [Tooltip("Drag the Basket GameObject that is parented INSIDE hand.R bone here.")]
-    public GameObject handBasketProp;
-
-    [Header("Money Visual FX")]
-    [Tooltip("Prefab of the cash note or particle effect to spawn.")]
-    public GameObject paymentNotesPrefab;
-    
-    [Tooltip("Empty GameObject placed near NPC's head for money spawn location.")]
-    public Transform headPosition;
-
-    [Header("Timers & Settings")]
-    [Tooltip("Random shop time range in seconds.")]
-    public float minShopTime = 2f;
-    public float maxShopTime = 30f;
-    
-    [Tooltip("How long they pause at each shelf.")]
-    public float browsePauseDuration = 3f;
-    
-    [Tooltip("Payment duration at checkout.")]
-    public float paymentDuration = 3f;
-    
+    [Header("Rotation Settings")]
+    [Tooltip("How fast the customer rotates to face the target direction.")]
     public float turnSpeed = 5f;
 
     private NavMeshAgent agent;
-    private Animator animator;
-    private Transform currentTarget;
-    private Vector3 currentQueueDestination;
-    private bool isBrowsingPause = false;
 
-    void Start()
+    private void Awake()
     {
         agent = GetComponent<NavMeshAgent>();
-        animator = GetComponent<Animator>();
-
-        agent.updateRotation = true;
-        agent.obstacleAvoidanceType = ObstacleAvoidanceType.HighQualityObstacleAvoidance;
-
-        // Hide hand basket at start
-        if (handBasketProp != null)
-        {
-            handBasketProp.SetActive(false);
-        }
-
-        // 1. Head to Basket Stack
-        if (basketStackPoint != null)
-        {
-            currentState = CustomerState.GrabbingBasket;
-            currentTarget = basketStackPoint;
-            SetDestinationSafe(basketStackPoint.position);
-        }
-        else
-        {
-            if (handBasketProp != null) handBasketProp.SetActive(true);
-            StartShopping();
-        }
     }
 
-    void Update()
+    private void Start()
     {
-        if (!agent.isActiveAndEnabled || !agent.isOnNavMesh) return;
-
-        // Sync Animator Speed parameter
-        if (animator != null)
-        {
-            float currentSpeed = (agent.isStopped || agent.velocity.sqrMagnitude < 0.01f) ? 0f : agent.velocity.magnitude;
-            animator.SetFloat("Speed", currentSpeed);
-        }
-
-        // Check if destination reached
-        if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.3f)
-        {
-            OnReachDestination();
-        }
+        StartCoroutine(ShoppingRoutine());
     }
 
-    void OnReachDestination()
+    private IEnumerator ShoppingRoutine()
     {
-        switch (currentState)
+        // ---------------------------------------------------------------
+        // 1. Shopping Loop (Between 2 to 30 Seconds Total Time)
+        // ---------------------------------------------------------------
+        float shoppingTimeLimit = Random.Range(2f, 30f);
+        float timeSpentShopping = 0f;
+
+        while (timeSpentShopping < shoppingTimeLimit)
         {
-            case CustomerState.GrabbingBasket:
-                // Arrived at basket stack: Enable basket!
-                if (handBasketProp != null)
-                {
-                    handBasketProp.SetActive(true);
-                }
-                StartShopping();
-                break;
-
-            case CustomerState.Shopping:
-                if (!isBrowsingPause)
-                {
-                    StartCoroutine(PauseAndBrowseRoutine());
-                }
-                break;
-
-            case CustomerState.HeadingToCheckout:
-                // If they reached the front spot (Index 0 in line), start paying!
-                if (playerCashierQueue != null && playerCashierQueue.waitingCustomers.IndexOf(this) == 0)
-                {
-                    currentState = CustomerState.Paying;
-                    StartCoroutine(PaymentRoutine());
-                }
-                break;
-
-            case CustomerState.Exiting:
-                Destroy(gameObject);
-                break;
-        }
-    }
-
-    void StartShopping()
-    {
-        currentState = CustomerState.Shopping;
-        StartCoroutine(ShoppingTimerRoutine());
-        MoveToNextShopSpot();
-    }
-
-    private IEnumerator ShoppingTimerRoutine()
-    {
-        float totalShopDuration = Random.Range(minShopTime, maxShopTime);
-        yield return new WaitForSeconds(totalShopDuration);
-        
-        GoToCheckout();
-    }
-
-    private IEnumerator PauseAndBrowseRoutine()
-    {
-        isBrowsingPause = true;
-
-        // Freeze movement completely
-        agent.isStopped = true;
-        agent.velocity = Vector3.zero;
-        if (animator != null) animator.SetFloat("Speed", 0f);
-
-        float timer = 0f;
-        while (timer < browsePauseDuration)
-        {
-            if (currentTarget != null)
+            if (wayfinders != null && wayfinders.Length > 0)
             {
-                SmoothFaceTarget(currentTarget.position);
+                // Select a random wayfinder spot
+                int randomIndex = Random.Range(0, wayfinders.Length);
+                Transform targetWayfinder = wayfinders[randomIndex];
+
+                // Walk to selected wayfinder spot
+                yield return StartCoroutine(MoveToTarget(targetWayfinder));
+
+                // Stop and browse for 2 to 5 seconds
+                float browseDuration = Random.Range(2f, 5f);
+                yield return new WaitForSeconds(browseDuration);
+
+                timeSpentShopping += browseDuration;
             }
-            timer += Time.deltaTime;
+            else
+            {
+                yield return new WaitForSeconds(1f);
+                timeSpentShopping += 1f;
+            }
+        }
+
+        // ---------------------------------------------------------------
+        // 2. Choose Checkout (30% Self-Checkout / 70% Player Cashier)
+        // ---------------------------------------------------------------
+        int checkoutRoll = Random.Range(1, 101); // 1 to 100
+        Transform chosenCheckout = (checkoutRoll <= 70) ? playerCashier : selfCheckout;
+
+        yield return StartCoroutine(MoveToTarget(chosenCheckout));
+
+        // Stay at checkout for 2 to 5 seconds
+        yield return new WaitForSeconds(Random.Range(2f, 5f));
+
+        // Spawn Money Popup
+        SpawnMoneyPopup();
+
+        // ---------------------------------------------------------------
+        // 3. Walk Out to Exit
+        // ---------------------------------------------------------------
+        yield return StartCoroutine(MoveToTarget(exitPoint));
+
+        // Brief delay so they clearly exit the doorway before despawning
+        yield return new WaitForSeconds(1f);
+
+        Destroy(gameObject);
+    }
+
+    private IEnumerator MoveToTarget(Transform destination)
+    {
+        if (destination == null) yield break;
+
+        agent.SetDestination(destination.position);
+
+        // Wait until path calculation is complete
+        while (agent.pathPending)
+        {
             yield return null;
         }
 
-        agent.isStopped = false;
-        isBrowsingPause = false;
-
-        if (currentState == CustomerState.Shopping)
+        // Wait until agent reaches destination spot
+        while (agent.remainingDistance > agent.stoppingDistance)
         {
-            MoveToNextShopSpot();
-        }
-    }
-
-    void MoveToNextShopSpot()
-    {
-        if (shoppingWaypoints == null || shoppingWaypoints.Count == 0) return;
-
-        currentTarget = shoppingWaypoints[Random.Range(0, shoppingWaypoints.Count)];
-        SetDestinationSafe(currentTarget.position);
-    }
-
-    void GoToCheckout()
-    {
-        currentState = CustomerState.HeadingToCheckout;
-
-        // If line is too long (> 2) and self checkout exists -> Divert
-        if (playerCashierQueue != null && playerCashierQueue.GetQueueCount() > 2 && selfCheckoutCounters.Count > 0)
-        {
-            currentTarget = selfCheckoutCounters[Random.Range(0, selfCheckoutCounters.Count)];
-            SetDestinationSafe(currentTarget.position);
-        }
-        else if (playerCashierQueue != null)
-        {
-            // Join the Player Cashier line
-            playerCashierQueue.JoinQueue(this);
-            Vector3 myLineSpot = playerCashierQueue.GetWaitingPosition(this);
-            SetDestinationSafe(myLineSpot);
-        }
-        else
-        {
-            LeaveStore();
-        }
-    }
-
-    // Called by CashierQueue whenever someone ahead leaves
-    public void UpdateQueueTarget(Vector3 newQueuePosition)
-    {
-        currentQueueDestination = newQueuePosition;
-        if (currentState == CustomerState.HeadingToCheckout)
-        {
-            SetDestinationSafe(newQueuePosition);
-        }
-    }
-
-    private IEnumerator PaymentRoutine()
-    {
-        agent.isStopped = true;
-        agent.velocity = Vector3.zero;
-        if (animator != null) animator.SetFloat("Speed", 0f);
-
-        float timer = 0f;
-
-        // Face register while paying
-        while (timer < paymentDuration)
-        {
-            if (playerCashierQueue != null && playerCashierQueue.lineStartSpot != null)
-            {
-                SmoothFaceTarget(playerCashierQueue.lineStartSpot.position + playerCashierQueue.lineStartSpot.forward);
-            }
-            timer += Time.deltaTime;
             yield return null;
         }
 
-        // Spawn Money Notes FX
-        if (paymentNotesPrefab != null)
+        // --- NEW: Rotate Customer to match the Target's Facing Direction ---
+        Quaternion targetRotation = destination.rotation;
+        while (Quaternion.Angle(transform.rotation, targetRotation) > 2f)
         {
-            Vector3 spawnPos = headPosition != null ? headPosition.position : transform.position + Vector3.up * 2f;
-            GameObject notes = Instantiate(paymentNotesPrefab, spawnPos, Quaternion.identity);
-            Destroy(notes, 2.5f);
-        }
-
-        // Return Basket (Hide)
-        if (handBasketProp != null)
-        {
-            handBasketProp.SetActive(false);
-        }
-
-        // Step out of queue so people behind shift forward
-        if (playerCashierQueue != null)
-        {
-            playerCashierQueue.LeaveQueue(this);
-        }
-
-        yield return new WaitForSeconds(0.5f);
-
-        agent.isStopped = false;
-        LeaveStore();
-    }
-
-    void LeaveStore()
-    {
-        currentState = CustomerState.Exiting;
-        currentTarget = exitPoint;
-
-        if (exitPoint != null)
-        {
-            SetDestinationSafe(exitPoint.position);
-        }
-        else
-        {
-            Destroy(gameObject);
-        }
-    }
-
-    void SetDestinationSafe(Vector3 target)
-    {
-        if (agent.isActiveAndEnabled && agent.isOnNavMesh)
-        {
-            agent.isStopped = false;
-            agent.SetDestination(target);
-        }
-    }
-
-    void SmoothFaceTarget(Vector3 targetPosition)
-    {
-        Vector3 direction = (targetPosition - transform.position).normalized;
-        direction.y = 0;
-
-        if (direction != Vector3.zero)
-        {
-            Quaternion targetRotation = Quaternion.LookRotation(direction);
             transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * turnSpeed);
+            yield return null;
+        }
+        transform.rotation = targetRotation; // Lock final angle
+    }
+
+    private void SpawnMoneyPopup()
+    {
+        if (moneyPopupPrefab != null && headTransform != null)
+        {
+            GameObject popup = Instantiate(moneyPopupPrefab, headTransform.position, Quaternion.identity);
+            
+            TMP_Text tmp = popup.GetComponentInChildren<TMP_Text>();
+            if (tmp != null)
+            {
+                tmp.text = "+$" + Random.Range(10, 50);
+            }
+
+            Destroy(popup, 1.5f);
         }
     }
 }
