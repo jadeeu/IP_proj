@@ -26,7 +26,7 @@ public class DestinationArrow : MonoBehaviour
 
         // Point the arrow downward
         transform.rotation = Quaternion.Euler(
-            90f,
+            0f,
             0f,
             0f
         );
