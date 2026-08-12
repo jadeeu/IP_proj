@@ -1,42 +1,73 @@
 using UnityEngine;
+using UnityEngine.SceneManagement;
+using TMPro;   // needed for TextMeshProUGUI
 
 public class GameManager : MonoBehaviour
 {
     public static GameManager Instance;
 
-    [Header("Respawn")]
-    public Transform homePoint;
-    public GameObject player;
+    [Header("Death UI")]
+    public GameObject deathScreen;
 
     [Header("Score")]
     public int score = 10;
+    public TextMeshProUGUI scoreText;   // drag ScoreText here
+
+    private bool isDead = false;
 
     void Awake()
     {
         Instance = this;
     }
 
-    public void CarHit()
+    void Start()
     {
-        Debug.Log("Player was hit by a car!");
-        RespawnAtHome();
+        UpdateScoreDisplay();
+    }
+
+    void Update()
+    {
+        if (isDead && Input.GetKeyDown(KeyCode.R))
+        {
+            TryAgain();
+        }
     }
 
     public void AddPoints(int amount)
     {
         score += amount;
-        Debug.Log($"Score: {score} ({(amount >= 0 ? "+" : "")}{amount})");
+        UpdateScoreDisplay();
     }
 
-    void RespawnAtHome()
+    void UpdateScoreDisplay()
     {
-        if (homePoint == null || player == null) return;
+        if (scoreText != null)
+            scoreText.text = "Score: " + score;
+    }
 
-        CharacterController cc = player.GetComponent<CharacterController>();
-        if (cc != null) cc.enabled = false;
+    public void CarHit()
+    {
+        if (isDead) return;
+        isDead = true;
 
-        player.transform.SetPositionAndRotation(homePoint.position, homePoint.rotation);
+        if (deathScreen != null)
+            deathScreen.SetActive(true);
 
-        if (cc != null) cc.enabled = true;
+        SetScoreVisible(false);   // hide score while the popup is up
+
+        Time.timeScale = 0f;
+    }
+
+    // Call this from anything that opens/closes a popup
+    public void SetScoreVisible(bool visible)
+    {
+        if (scoreText != null)
+            scoreText.gameObject.SetActive(visible);
+    }
+
+    public void TryAgain()
+    {
+        Time.timeScale = 1f;
+        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
 }

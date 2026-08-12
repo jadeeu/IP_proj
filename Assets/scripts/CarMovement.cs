@@ -10,7 +10,7 @@ public class CarMovement : MonoBehaviour
     public float leftEdgeX = -80f;
 
     [Header("Traffic light")]
-    public IntersectionLightController trafficLight;
+    // public IntersectionLightController trafficLight;   // disabled until the script exists
     public float stopLineX;   // where the FIRST car in this lane stops
     public float carGap = 6f; // space kept behind the car in front
 
@@ -21,8 +21,9 @@ public class CarMovement : MonoBehaviour
         float dir = (direction == Direction.Right ? 1f : -1f);
         float newX = transform.position.x + dir * speed * Time.deltaTime;
 
-        bool lightIsRed = trafficLight != null
-            && trafficLight.CurrentState == IntersectionLightController.LightState.B;
+        bool lightIsRed = false;   // traffic light disabled for now
+        // bool lightIsRed = trafficLight != null
+        //     && trafficLight.CurrentState == IntersectionLightController.LightState.B;
 
         if (lightIsRed)
         {
@@ -69,10 +70,11 @@ public class CarMovement : MonoBehaviour
     }
 
     void OnTriggerEnter(Collider other)
-{
-    if (other.CompareTag("Player"))
     {
-        GameManager.Instance.CarHit();
+        Debug.Log("Car trigger: " + other.name + " tag=" + other.tag);
+        if (other.CompareTag("Player") && GameManager.Instance != null)
+        {
+            GameManager.Instance.CarHit();
+        }
     }
-}
 }
