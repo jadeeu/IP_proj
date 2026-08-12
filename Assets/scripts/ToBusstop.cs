@@ -32,7 +32,6 @@ public class WalkToBusStop : MonoBehaviour
 
         speedHash = Animator.StringToHash("Speed");
 
-        // Allow climbing stairs/slopes if off-mesh links exist
         agent.autoTraverseOffMeshLink = true;
 
         // Set destination to the bus stop
