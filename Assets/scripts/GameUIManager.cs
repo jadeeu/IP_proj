@@ -187,25 +187,27 @@ public class GameUIManager : MonoBehaviour
         string nextObjective
     )
     {
-        // Hide objective while character is thinking
+        // Hide objective while monologue is playing
         if (objectiveText != null)
             objectiveText.gameObject.SetActive(false);
 
 
-        // Show monologue
+        // Make sure monologue exists
         if (monologueText == null)
             yield break;
 
+
+        // Show monologue
         monologueText.gameObject.SetActive(true);
 
 
-        // Make sure text is fully visible
+        // Make sure text starts fully visible
         Color colour = monologueText.color;
         colour.a = 1f;
         monologueText.color = colour;
 
 
-        // Start empty
+        // Clear previous text
         monologueText.text = "";
 
 
@@ -227,35 +229,42 @@ public class GameUIManager : MonoBehaviour
         // READING TIME
         // =========================
 
-        float timer = 0f;
-
-        while (timer < readingTime)
-        {
-            timer += Time.deltaTime;
-
-            // Left mouse click skips reading wait
-            if (Input.GetMouseButtonDown(0))
-            {
-                break;
-            }
-
-            yield return null;
-        }
+        yield return new WaitForSeconds(
+            readingTime
+        );
 
 
         // =========================
         // FADE OUT
         // =========================
 
-        yield return StartCoroutine(
-            FadeText(
-                monologueText,
+        float fadeTimer = 0f;
+
+        while (fadeTimer < fadeDuration)
+        {
+            fadeTimer += Time.deltaTime;
+
+            float alpha = Mathf.Lerp(
                 1f,
-                0f
-            )
-        );
+                0f,
+                fadeTimer / fadeDuration
+            );
+
+            colour = monologueText.color;
+            colour.a = alpha;
+            monologueText.color = colour;
+
+            yield return null;
+        }
 
 
+        // Make absolutely sure it is invisible
+        colour = monologueText.color;
+        colour.a = 0f;
+        monologueText.color = colour;
+
+
+        // Hide monologue
         monologueText.gameObject.SetActive(false);
 
 
@@ -263,7 +272,19 @@ public class GameUIManager : MonoBehaviour
         // SHOW OBJECTIVE
         // =========================
 
-        ShowObjective(nextObjective);
+        if (objectiveText != null)
+        {
+            objectiveText.gameObject.SetActive(true);
+
+            objectiveText.text =
+                "OBJECTIVE\n" + nextObjective;
+
+
+            // Make sure objective is fully visible
+            colour = objectiveText.color;
+            colour.a = 1f;
+            objectiveText.color = colour;
+        }
     }
 
 
