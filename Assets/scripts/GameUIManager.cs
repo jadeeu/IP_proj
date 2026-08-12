@@ -28,11 +28,18 @@ public class GameUIManager : MonoBehaviour
 
     private void Start()
     {
-        // Set starting score
+        // =========================
+        // STARTING SCORE
+        // =========================
+
         currentScore = startingScore;
         UpdateScore();
 
-        // Hide UI elements that shouldn't appear immediately
+
+        // =========================
+        // HIDE UI ELEMENTS
+        // =========================
+
         if (pointChangeText != null)
             pointChangeText.gameObject.SetActive(false);
 
@@ -50,7 +57,18 @@ public class GameUIManager : MonoBehaviour
 
         if (objectiveText != null)
             objectiveText.gameObject.SetActive(false);
+
+
+        // =========================
+        // STARTING MONOLOGUE
+        // =========================
+
+        ShowMonologue(
+            "I should get going. My shift starts soon.",
+            "Follow the arrows towards the lift."
+        );
     }
+
 
     // =========================
     // SCORE
@@ -59,10 +77,12 @@ public class GameUIManager : MonoBehaviour
     public void AddPoints(int amount)
     {
         currentScore += amount;
+
         UpdateScore();
 
         ShowPointChange("+" + amount);
     }
+
 
     public void RemovePoints(int amount)
     {
@@ -77,6 +97,7 @@ public class GameUIManager : MonoBehaviour
         ShowPointChange("-" + amount);
     }
 
+
     private void UpdateScore()
     {
         if (scoreText != null)
@@ -85,16 +106,23 @@ public class GameUIManager : MonoBehaviour
         }
     }
 
+
     private void ShowPointChange(string message)
     {
         if (pointCoroutine != null)
             StopCoroutine(pointCoroutine);
 
-        pointCoroutine = StartCoroutine(PointChangeRoutine(message));
+        pointCoroutine = StartCoroutine(
+            PointChangeRoutine(message)
+        );
     }
+
 
     private IEnumerator PointChangeRoutine(string message)
     {
+        if (pointChangeText == null)
+            yield break;
+
         pointChangeText.gameObject.SetActive(true);
 
         pointChangeText.text = message;
@@ -104,8 +132,10 @@ public class GameUIManager : MonoBehaviour
         colour.a = 1f;
         pointChangeText.color = colour;
 
+
         // Wait briefly
         yield return new WaitForSeconds(1f);
+
 
         // Fade out
         float time = 0f;
@@ -114,7 +144,11 @@ public class GameUIManager : MonoBehaviour
         {
             time += Time.deltaTime;
 
-            float alpha = Mathf.Lerp(1f, 0f, time / fadeDuration);
+            float alpha = Mathf.Lerp(
+                1f,
+                0f,
+                time / fadeDuration
+            );
 
             colour.a = alpha;
             pointChangeText.color = colour;
@@ -122,22 +156,31 @@ public class GameUIManager : MonoBehaviour
             yield return null;
         }
 
+
         pointChangeText.gameObject.SetActive(false);
     }
+
 
     // =========================
     // MONOLOGUE
     // =========================
 
-    public void ShowMonologue(string message, string nextObjective)
+    public void ShowMonologue(
+        string message,
+        string nextObjective
+    )
     {
         if (monologueCoroutine != null)
             StopCoroutine(monologueCoroutine);
 
         monologueCoroutine = StartCoroutine(
-            MonologueRoutine(message, nextObjective)
+            MonologueRoutine(
+                message,
+                nextObjective
+            )
         );
     }
+
 
     private IEnumerator MonologueRoutine(
         string message,
@@ -145,30 +188,52 @@ public class GameUIManager : MonoBehaviour
     )
     {
         // Hide objective while character is thinking
-        objectiveText.gameObject.SetActive(false);
+        if (objectiveText != null)
+            objectiveText.gameObject.SetActive(false);
+
 
         // Show monologue
+        if (monologueText == null)
+            yield break;
+
         monologueText.gameObject.SetActive(true);
+
+
+        // Make sure text is fully visible
+        Color colour = monologueText.color;
+        colour.a = 1f;
+        monologueText.color = colour;
+
 
         // Start empty
         monologueText.text = "";
 
-        // Typewriter effect
+
+        // =========================
+        // TYPEWRITER EFFECT
+        // =========================
+
         foreach (char letter in message)
         {
             monologueText.text += letter;
 
-            yield return new WaitForSeconds(typingSpeed);
+            yield return new WaitForSeconds(
+                typingSpeed
+            );
         }
 
-        // Allow player to read
+
+        // =========================
+        // READING TIME
+        // =========================
+
         float timer = 0f;
 
         while (timer < readingTime)
         {
             timer += Time.deltaTime;
 
-            // Left mouse click skips the waiting period
+            // Left mouse click skips reading wait
             if (Input.GetMouseButtonDown(0))
             {
                 break;
@@ -177,18 +242,30 @@ public class GameUIManager : MonoBehaviour
             yield return null;
         }
 
-        // Fade out
-        yield return StartCoroutine(FadeText(
-            monologueText,
-            1f,
-            0f
-        ));
+
+        // =========================
+        // FADE OUT
+        // =========================
+
+        yield return StartCoroutine(
+            FadeText(
+                monologueText,
+                1f,
+                0f
+            )
+        );
+
 
         monologueText.gameObject.SetActive(false);
 
-        // Show next objective
+
+        // =========================
+        // SHOW OBJECTIVE
+        // =========================
+
         ShowObjective(nextObjective);
     }
+
 
     // =========================
     // OBJECTIVE
@@ -196,9 +273,14 @@ public class GameUIManager : MonoBehaviour
 
     public void ShowObjective(string message)
     {
+        if (objectiveText == null)
+            return;
+
         objectiveText.gameObject.SetActive(true);
 
-        objectiveText.text = "OBJECTIVE\n" + message;
+        objectiveText.text =
+            "OBJECTIVE\n" + message;
+
 
         // Make sure it is visible
         Color colour = objectiveText.color;
@@ -206,31 +288,44 @@ public class GameUIManager : MonoBehaviour
         objectiveText.color = colour;
     }
 
+
     // =========================
     // NARRATION
     // =========================
 
     public void ShowNarration(string message)
     {
-        StartCoroutine(NarrationRoutine(message));
+        StartCoroutine(
+            NarrationRoutine(message)
+        );
     }
+
 
     private IEnumerator NarrationRoutine(string message)
     {
+        if (narrationText == null)
+            yield break;
+
         narrationText.gameObject.SetActive(true);
 
         narrationText.text = message;
 
+
         yield return new WaitForSeconds(4f);
 
-        yield return StartCoroutine(FadeText(
-            narrationText,
-            1f,
-            0f
-        ));
+
+        yield return StartCoroutine(
+            FadeText(
+                narrationText,
+                1f,
+                0f
+            )
+        );
+
 
         narrationText.gameObject.SetActive(false);
     }
+
 
     // =========================
     // WARNING
@@ -238,25 +333,37 @@ public class GameUIManager : MonoBehaviour
 
     public void ShowWarning(string message)
     {
-        StartCoroutine(WarningRoutine(message));
+        StartCoroutine(
+            WarningRoutine(message)
+        );
     }
+
 
     private IEnumerator WarningRoutine(string message)
     {
+        if (warningText == null)
+            yield break;
+
         warningText.gameObject.SetActive(true);
 
         warningText.text = message;
 
+
         yield return new WaitForSeconds(2f);
 
-        yield return StartCoroutine(FadeText(
-            warningText,
-            1f,
-            0f
-        ));
+
+        yield return StartCoroutine(
+            FadeText(
+                warningText,
+                1f,
+                0f
+            )
+        );
+
 
         warningText.gameObject.SetActive(false);
     }
+
 
     // =========================
     // FADE
@@ -268,9 +375,13 @@ public class GameUIManager : MonoBehaviour
         float endAlpha
     )
     {
+        if (text == null)
+            yield break;
+
         float time = 0f;
 
         Color colour = text.color;
+
 
         while (time < fadeDuration)
         {
@@ -283,12 +394,15 @@ public class GameUIManager : MonoBehaviour
             );
 
             colour.a = alpha;
+
             text.color = colour;
 
             yield return null;
         }
 
+
         colour.a = endAlpha;
+
         text.color = colour;
     }
 }
