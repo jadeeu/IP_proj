@@ -6,6 +6,13 @@ TagManager:
   tags:
   - CinemachineTarget
   - NPC
+  - Lane1Car
+  - Lane2Car
+  - EdithShelf
+  - Doris1
+  - Doris2
+  - Cashier
+  - StoreItem
   layers:
   - Default
   - TransparentFX
