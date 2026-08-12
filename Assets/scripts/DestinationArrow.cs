@@ -2,8 +2,8 @@ using UnityEngine;
 
 public class DestinationArrow : MonoBehaviour
 {
-    [Header("Current Destination")]
-    public Transform target;
+    [Header("Destinations")]
+    public Transform[] destinations;
 
     [Header("Player")]
     public Transform player;
@@ -15,13 +15,36 @@ public class DestinationArrow : MonoBehaviour
     [Header("Arrival Settings")]
     public float arrivalDistance = 2f;
 
+    private int currentDestinationIndex = 0;
+
+    private void Start()
+    {
+        if (destinations.Length == 0)
+        {
+            Debug.LogWarning("No destinations assigned to the arrow.");
+            return;
+        }
+
+        SetCurrentDestination();
+    }
+
     private void Update()
     {
-        if (target == null)
+        if (destinations.Length == 0)
             return;
 
-        // Position arrow above the destination
-        Vector3 targetPosition = target.position;
+        Transform currentTarget =
+            destinations[currentDestinationIndex];
+
+        if (currentTarget == null)
+            return;
+
+        // =========================
+        // MOVE ARROW ABOVE TARGET
+        // =========================
+
+        Vector3 targetPosition = currentTarget.position;
+
         targetPosition.y += heightAboveTarget;
 
         transform.position = Vector3.Lerp(
@@ -30,36 +53,77 @@ public class DestinationArrow : MonoBehaviour
             moveSpeed * Time.deltaTime
         );
 
-        // Keep arrow pointing downward
-        transform.rotation = Quaternion.Euler(0f, 0f, 0f);
 
-        // Check if player reached destination
+        // =========================
+        // KEEP ARROW POINTING DOWN
+        // =========================
+
+        transform.rotation = Quaternion.Euler(
+            0f,
+            0f,
+            0f
+        );
+
+
+        // =========================
+        // CHECK PLAYER DISTANCE
+        // =========================
+
         if (player != null)
         {
             float distance = Vector3.Distance(
                 player.position,
-                target.position
+                currentTarget.position
             );
 
             if (distance <= arrivalDistance)
             {
-                HideArrow();
+                GoToNextDestination();
             }
         }
     }
 
-    public void SetDestination(Transform newTarget)
-    {
-        target = newTarget;
 
-        // Make sure arrow is visible when a new destination is assigned
+    private void GoToNextDestination()
+    {
+        currentDestinationIndex++;
+
+        // =========================
+        // ALL DESTINATIONS COMPLETE
+        // =========================
+
+        if (currentDestinationIndex >= destinations.Length)
+        {
+            HideArrow();
+            return;
+        }
+
+
+        // =========================
+        // MOVE TO NEXT DESTINATION
+        // =========================
+
+        SetCurrentDestination();
+    }
+
+
+    private void SetCurrentDestination()
+    {
+        Transform target =
+            destinations[currentDestinationIndex];
+
+        if (target == null)
+            return;
+
         ShowArrow();
     }
+
 
     public void HideArrow()
     {
         gameObject.SetActive(false);
     }
+
 
     public void ShowArrow()
     {
