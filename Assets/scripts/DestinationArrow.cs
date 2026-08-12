@@ -5,16 +5,22 @@ public class DestinationArrow : MonoBehaviour
     [Header("Current Destination")]
     public Transform target;
 
+    [Header("Player")]
+    public Transform player;
+
     [Header("Arrow Settings")]
     public float heightAboveTarget = 2.5f;
     public float moveSpeed = 5f;
+
+    [Header("Arrival Settings")]
+    public float arrivalDistance = 2f;
 
     private void Update()
     {
         if (target == null)
             return;
 
-        // Position the arrow above the destination
+        // Position arrow above the destination
         Vector3 targetPosition = target.position;
         targetPosition.y += heightAboveTarget;
 
@@ -24,17 +30,30 @@ public class DestinationArrow : MonoBehaviour
             moveSpeed * Time.deltaTime
         );
 
-        // Point the arrow downward
-        transform.rotation = Quaternion.Euler(
-            0f,
-            0f,
-            0f
-        );
+        // Keep arrow pointing downward
+        transform.rotation = Quaternion.Euler(0f, 0f, 0f);
+
+        // Check if player reached destination
+        if (player != null)
+        {
+            float distance = Vector3.Distance(
+                player.position,
+                target.position
+            );
+
+            if (distance <= arrivalDistance)
+            {
+                HideArrow();
+            }
+        }
     }
 
     public void SetDestination(Transform newTarget)
     {
         target = newTarget;
+
+        // Make sure arrow is visible when a new destination is assigned
+        ShowArrow();
     }
 
     public void HideArrow()
