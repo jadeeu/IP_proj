@@ -26,10 +26,19 @@ public class NarrationTrigger : MonoBehaviour
 
         hasTriggered = true;
 
-        // Show the monologue, then the objective
-        uiManager.ShowMonologue(
-            monologue,
-            objective
-        );
+        // If there is a monologue, show it first.
+        if (!string.IsNullOrEmpty(monologue))
+        {
+            uiManager.ShowMonologue(
+                monologue,
+                objective
+            );
+        }
+        else
+        {
+            // If there is no monologue,
+            // show the objective immediately.
+            uiManager.ShowObjective(objective);
+        }
     }
 }
