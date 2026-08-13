@@ -1,82 +1,103 @@
 using System.Collections;
 using UnityEngine;
+using UnityEngine.UI;
+using TMPro; // Standard for modern Unity text UI
 
-public class NPCDialogue : MonoBehaviour
+public class ShopLookOut : MonoBehaviour
 {
-    [Header("UI & Camera Elements")]
-    public GameObject dialogueBox;          // UI panel containing dialogue text
-    public UnityEngine.UI.Text dialogueText; // Text component to display lines
-    public GameObject signboardUI;          // The signboard panel to show at the end
-    public Camera mainPlayerCamera;         // Your main walking/player camera
-    public Camera cashierCamera;            // The fixed camera positioned at the cashier
+    [Header("UI References")]
+    public GameObject dialogueBox;
+    public TMP_Text dialogueText; // TextMeshPro text slot
+    public GameObject signboardUI;
 
-    [Header("Player Movement Control")]
-    public MonoBehaviour playerMovementScript; // Script that controls player movement (e.g., FirstPersonController)
+    [Header("Movement & Targets")]
+    public Transform exitWaypoint;
+    public float walkSpeed = 2f;
 
-    private int dialogueStep = 0;
-    private bool isPlayerNearby = false;
+    [Header("Dialogue Content")]
+    [TextArea(3, 5)]
+    public string coworkerDialogue = "Hey! Thanks for taking over. Watch out today—there's been a rise in shop thefts recently. I actually caught a teen shoplifting earlier today. Anyway, see ya!";
+
+    private bool isPlayerInZone = false;
+    private bool hasInteracted = false;
 
     void Update()
     {
-        // Press 'E' to interact or advance dialogue when nearby
-        if (isPlayerNearby && Input.GetKeyDown(KeyCode.E))
+        // Press E to interact when standing near the coworker
+        if (isPlayerInZone && !hasInteracted && Input.GetKeyDown(KeyCode.E))
         {
-            AdvanceDialogue();
+            StartCoroutine(StartTakeoverSequence());
         }
     }
 
-    void AdvanceDialogue()
+    private IEnumerator StartTakeoverSequence()
     {
-        dialogueBox.SetActive(true);
+        hasInteracted = true;
 
-        if (dialogueStep == 0)
+        // 1. Find player by Tag and disable movement components
+        GameObject player = GameObject.FindWithTag("Player");
+        if (player != null)
         {
-            dialogueText.text = "There has been a rise of shop thefts recently... I actually caught a teen shoplifting earlier today!";
-            dialogueStep++;
+            // Disables CharacterController if present
+            CharacterController charController = player.GetComponent<CharacterController>();
+            if (charController != null) charController.enabled = false;
+
+            // Freezes Rigidbody physics if present
+            Rigidbody rb = player.GetComponent<Rigidbody>();
+            if (rb != null) rb.isKinematic = true;
+
+            // Disables custom movement scripts on the player object
+            MonoBehaviour[] scripts = player.GetComponents<MonoBehaviour>();
+            foreach (var script in scripts)
+            {
+                script.enabled = false;
+            }
         }
-        else if (dialogueStep == 1)
+
+        // 2. Show Dialogue Box and write message
+        if (dialogueBox != null)
         {
-            dialogueText.text = "Anyway, I have to go now. Bye!";
-            dialogueStep++;
+            dialogueBox.SetActive(true);
+            if (dialogueText != null)
+            {
+                dialogueText.text = coworkerDialogue;
+            }
         }
-        else if (dialogueStep == 2)
+
+        // Wait 4 seconds for the player to read
+        yield return new WaitForSeconds(4f); 
+
+        // Hide Dialogue Box
+        if (dialogueBox != null)
         {
-            // Hide dialogue box and trigger NPC leave sequence
             dialogueBox.SetActive(false);
-            StartCoroutine(WalkAwayAndSwitchToCashier());
-        }
-    }
-
-    IEnumerator WalkAwayAndSwitchToCashier()
-    {
-        // 1. Make NPC walk forward/away (simple local translation over time)
-        float walkTime = 3f;
-        float elapsedTime = 0f;
-        
-        while (elapsedTime < walkTime)
-        {
-            transform.Translate(Vector3.forward * 2f * Time.deltaTime);
-            elapsedTime += Time.deltaTime;
-            yield return null;
         }
 
-        // Disable NPC after walking away
-        gameObject.SetActive(false);
+        // 3. Coworker walks off-screen
+        yield return StartCoroutine(WalkToExit());
 
-        // 2. Lock player movement completely
-        if (playerMovementScript != null)
-        {
-            playerMovementScript.enabled = false;
-        }
-
-        // 3. Switch camera perspective to Cashier Remote View
-        if (mainPlayerCamera != null) mainPlayerCamera.gameObject.SetActive(false);
-        if (cashierCamera != null) cashierCamera.gameObject.SetActive(true);
-
-        // 4. Show Signboard UI
+        // 4. Show Signboard UI after she leaves
         if (signboardUI != null)
         {
             signboardUI.SetActive(true);
+        }
+
+        // Hide coworker object after reaching target destination
+        gameObject.SetActive(false);
+    }
+
+    private IEnumerator WalkToExit()
+    {
+        if (exitWaypoint == null) yield break;
+
+        while (Vector3.Distance(transform.position, exitWaypoint.position) > 0.1f)
+        {
+            transform.position = Vector3.MoveTowards(
+                transform.position, 
+                exitWaypoint.position, 
+                walkSpeed * Time.deltaTime
+            );
+            yield return null;
         }
     }
 
@@ -84,7 +105,7 @@ public class NPCDialogue : MonoBehaviour
     {
         if (other.CompareTag("Player"))
         {
-            isPlayerNearby = true;
+            isPlayerInZone = true;
         }
     }
 
@@ -92,8 +113,7 @@ public class NPCDialogue : MonoBehaviour
     {
         if (other.CompareTag("Player"))
         {
-            isPlayerNearby = false;
-            dialogueBox.SetActive(false);
+            isPlayerInZone = false;
         }
     }
 }

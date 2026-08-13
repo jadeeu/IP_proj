@@ -27,15 +27,26 @@ public class ShopCustomer : MonoBehaviour
     [Tooltip("Position above the head where money pops up.")]
     public Transform headTransform;
 
-    [Header("Rotation Settings")]
+    [Header("Rotation & Avoidance Settings")]
     [Tooltip("How fast the customer rotates to face the target direction.")]
     public float turnSpeed = 5f;
+    
+    [Tooltip("Maximum seconds allowed to get stuck before giving up on a waypoint.")]
+    public float stuckTimeout = 5f;
 
     private NavMeshAgent agent;
 
     private void Awake()
     {
         agent = GetComponent<NavMeshAgent>();
+
+        // Ensure proper agent settings for local avoidance (prevents bumping)
+        if (agent != null)
+        {
+            agent.obstacleAvoidanceType = ObstacleAvoidanceType.HighQualityObstacleAvoidance;
+            agent.radius = 0.35f; // Gives them personal space
+            agent.avoidancePriority = Random.Range(30, 60); // Prevents deadlocks when crossing paths
+        }
     }
 
     private void Start()
@@ -102,7 +113,7 @@ public class ShopCustomer : MonoBehaviour
 
     private IEnumerator MoveToTarget(Transform destination)
     {
-        if (destination == null) yield break;
+        if (destination == null || agent == null || !agent.isActiveAndEnabled) yield break;
 
         agent.SetDestination(destination.position);
 
@@ -112,17 +123,37 @@ public class ShopCustomer : MonoBehaviour
             yield return null;
         }
 
-        // Wait until agent reaches destination spot
+        float stuckTimer = 0f;
+
+        // Wait until agent reaches destination spot OR times out if blocked
         while (agent.remainingDistance > agent.stoppingDistance)
         {
+            // If NPC gets blocked (e.g. against shelf or another NPC)
+            if (agent.velocity.magnitude < 0.05f)
+            {
+                stuckTimer += Time.deltaTime;
+                if (stuckTimer >= stuckTimeout)
+                {
+                    // Reset path so they don't get stuck forever
+                    agent.ResetPath();
+                    yield break;
+                }
+            }
+            else
+            {
+                stuckTimer = 0f; // Reset timer while actively moving
+            }
+
             yield return null;
         }
 
-        // --- NEW: Rotate Customer to match the Target's Facing Direction ---
+        // Rotate Customer to match the Target's Facing Direction
         Quaternion targetRotation = destination.rotation;
-        while (Quaternion.Angle(transform.rotation, targetRotation) > 2f)
+        float rotateTimer = 0f;
+        while (Quaternion.Angle(transform.rotation, targetRotation) > 2f && rotateTimer < 2f)
         {
             transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * turnSpeed);
+            rotateTimer += Time.deltaTime;
             yield return null;
         }
         transform.rotation = targetRotation; // Lock final angle
