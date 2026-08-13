@@ -6,24 +6,38 @@ public class IntersectionLightController : MonoBehaviour
 {
     public enum LightState { A, B }
 
-    [SerializeField] private float cycleLength = 120f;   // total cycle: 2 minutes
-    [SerializeField] private float pauseDuration = 10f;  // time spent in B
+    [SerializeField] private float delayBeforeGreen = 3f;   // wait after button press
+    [SerializeField] private float greenDuration = 10f;     // how long cars are stopped
+    [SerializeField] private float cooldownAfterGreen = 5f; // ignore presses briefly after cycle
 
+    // Start in State A = green for cars, red for pedestrians
     public LightState CurrentState { get; private set; } = LightState.A;
     public event Action<LightState> OnLightChanged;
 
-    private void Start() => StartCoroutine(RunCycle());
+    private bool isCycleRunning = false;
 
-    private IEnumerator RunCycle()
+    public void RequestCrossing()
     {
-        while (true)
-        {
-            SetState(LightState.A);
-            yield return new WaitForSeconds(cycleLength - pauseDuration); // 110s
+        if (isCycleRunning) return; // ignore spam presses
+        StartCoroutine(RunRequestedCycle());
+    }
 
-            SetState(LightState.B);
-            yield return new WaitForSeconds(pauseDuration); // 10s
-        }
+    private IEnumerator RunRequestedCycle()
+    {
+        isCycleRunning = true;
+
+        // Wait 3 seconds before turning red for cars
+        yield return new WaitForSecondsRealtime(delayBeforeGreen);
+
+        // Cars stop (State B)
+        SetState(LightState.B);
+        yield return new WaitForSecondsRealtime(greenDuration);
+
+        // Cars go again (State A)
+        SetState(LightState.A);
+        yield return new WaitForSecondsRealtime(cooldownAfterGreen);
+
+        isCycleRunning = false;
     }
 
     private void SetState(LightState state)
