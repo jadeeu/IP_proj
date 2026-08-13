@@ -1,6 +1,5 @@
 using UnityEngine;
-using UnityEngine.SceneManagement;
-using TMPro;   // needed for TextMeshProUGUI
+using TMPro;
 
 public class GameManager : MonoBehaviour
 {
@@ -11,9 +10,7 @@ public class GameManager : MonoBehaviour
 
     [Header("Score")]
     public int score = 10;
-    public TextMeshProUGUI scoreText;   // drag ScoreText here
-
-    private bool isDead = false;
+    public TextMeshProUGUI scoreText;
 
     void Awake()
     {
@@ -23,20 +20,20 @@ public class GameManager : MonoBehaviour
     void Start()
     {
         UpdateScoreDisplay();
+        if (deathScreen != null) deathScreen.SetActive(false);
     }
 
-    void Update()
+    public void CarHit()
     {
-        if (isDead && Input.GetKeyDown(KeyCode.R))
-        {
-            TryAgain();
-        }
+        Debug.Log("Player was hit by a car!");
+        ShowDeathScreen();
     }
 
     public void AddPoints(int amount)
     {
         score += amount;
         UpdateScoreDisplay();
+        Debug.Log($"Score: {score} ({(amount >= 0 ? "+" : "")}{amount})");
     }
 
     void UpdateScoreDisplay()
@@ -45,29 +42,39 @@ public class GameManager : MonoBehaviour
             scoreText.text = "Score: " + score;
     }
 
-    public void CarHit()
+    void ShowDeathScreen()
     {
-        if (isDead) return;
-        isDead = true;
-
-        if (deathScreen != null)
-            deathScreen.SetActive(true);
-
-        SetScoreVisible(false);   // hide score while the popup is up
-
+        if (deathScreen != null) deathScreen.SetActive(true);
         Time.timeScale = 0f;
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
     }
 
-    // Call this from anything that opens/closes a popup
+    // Called by the Try Again button
+    public void TryAgain()
+    {
+        if (deathScreen != null) deathScreen.SetActive(false);
+        Time.timeScale = 1f;
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+
+        // Reload the scene to reset everything
+        UnityEngine.SceneManagement.SceneManager.LoadScene(
+            UnityEngine.SceneManagement.SceneManager.GetActiveScene().name);
+    }
+
     public void SetScoreVisible(bool visible)
     {
         if (scoreText != null)
             scoreText.gameObject.SetActive(visible);
     }
 
-    public void TryAgain()
+    void Update()
+{
+    if (deathScreen != null && deathScreen.activeSelf && Input.GetKeyDown(KeyCode.R))
     {
-        Time.timeScale = 1f;
-        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+        Debug.Log("R pressed — calling TryAgain");
+        TryAgain();
     }
+}
 }
