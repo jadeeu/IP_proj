@@ -7,8 +7,9 @@ public class AutoDoors : MonoBehaviour
     public Transform rightDoor;
 
     [Header("Settings")]
-    public float slideDistance = 1.5f; // How far doors move apart
-    public float openSpeed = 3.0f;     // Speed of opening/closing
+    public float slideDistance = 1.5f;
+    public float openSpeed = 3.0f;
+    public float stayOpenTime = 5f;   // how long doors stay open after last person leaves
 
     private Vector3 leftClosedPos;
     private Vector3 rightClosedPos;
@@ -16,20 +17,28 @@ public class AutoDoors : MonoBehaviour
     private Vector3 rightOpenPos;
 
     private bool isOpen = false;
+    private int occupants = 0;
+    private float closeTimer = 0f;
 
     void Start()
     {
-        // Save initial closed positions (local position)
         if (leftDoor) leftClosedPos = leftDoor.localPosition;
         if (rightDoor) rightClosedPos = rightDoor.localPosition;
 
-        // Calculate open positions along local X axis
         if (leftDoor) leftOpenPos = leftClosedPos + Vector3.left * slideDistance;
         if (rightDoor) rightOpenPos = rightClosedPos + Vector3.right * slideDistance;
     }
 
     void Update()
     {
+        // Count down only when nobody is inside the trigger
+        if (isOpen && occupants == 0)
+        {
+            closeTimer -= Time.deltaTime;
+            if (closeTimer <= 0f)
+                isOpen = false;
+        }
+
         Vector3 targetLeft = isOpen ? leftOpenPos : leftClosedPos;
         Vector3 targetRight = isOpen ? rightOpenPos : rightClosedPos;
 
@@ -42,10 +51,11 @@ public class AutoDoors : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        // Detect player or NPCs
         if (other.CompareTag("NPC") || other.CompareTag("Player"))
         {
+            occupants++;
             isOpen = true;
+            closeTimer = stayOpenTime;   // reset timer every time someone arrives
         }
     }
 
@@ -53,7 +63,9 @@ public class AutoDoors : MonoBehaviour
     {
         if (other.CompareTag("NPC") || other.CompareTag("Player"))
         {
-            isOpen = false;
+            occupants = Mathf.Max(0, occupants - 1);
+            if (occupants == 0)
+                closeTimer = stayOpenTime;   // start the 5s countdown when last person leaves
         }
     }
 }

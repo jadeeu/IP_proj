@@ -426,4 +426,66 @@ public class GameUIManager : MonoBehaviour
 
         text.color = colour;
     }
+
+
+     public Coroutine PlayDialogue(string[] lines, string nextObjective)
+    {
+        if (monologueCoroutine != null)
+            StopCoroutine(monologueCoroutine);
+ 
+        monologueCoroutine = StartCoroutine(
+            DialogueRoutine(lines, nextObjective)
+        );
+ 
+        return monologueCoroutine;
+    }
+ 
+ 
+    private IEnumerator DialogueRoutine(string[] lines, string nextObjective)
+    {
+        if (monologueText == null)
+            yield break;
+ 
+        // Hide objective while dialogue is playing
+        if (objectiveText != null)
+            objectiveText.gameObject.SetActive(false);
+ 
+        monologueText.gameObject.SetActive(true);
+ 
+        // Make sure text is fully visible
+        Color colour = monologueText.color;
+        colour.a = 1f;
+        monologueText.color = colour;
+ 
+        foreach (string line in lines)
+        {
+            monologueText.text = "";
+ 
+            // Typewriter effect (same as your monologue)
+            foreach (char letter in line)
+            {
+                monologueText.text += letter;
+                yield return new WaitForSeconds(typingSpeed);
+            }
+ 
+            // Shorter pause between lines than a full monologue
+            yield return new WaitForSeconds(2f);
+        }
+ 
+        // Fade out the last line
+        yield return StartCoroutine(FadeText(monologueText, 1f, 0f));
+        monologueText.gameObject.SetActive(false);
+ 
+        // Restore alpha for future monologues
+        colour = monologueText.color;
+        colour.a = 1f;
+        monologueText.color = colour;
+ 
+        // Show the next objective
+        if (objectiveText != null && !string.IsNullOrEmpty(nextObjective))
+        {
+            ShowObjective(nextObjective);
+        }
+
+    }
 }
