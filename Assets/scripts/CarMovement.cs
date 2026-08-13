@@ -24,7 +24,6 @@ public class CarMovement : MonoBehaviour
     void OnDisable() { allCars.Remove(this); }
     void OnTriggerEnter(Collider other)
     {
-        Debug.Log("Car " + name + " trigger hit by: " + other.name + " (tag: " + other.tag + ")");
         
         if (other.CompareTag("Player"))
         {
