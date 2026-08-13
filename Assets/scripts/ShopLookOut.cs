@@ -1,18 +1,19 @@
 using System.Collections;
 using UnityEngine;
-using UnityEngine.UI;
-using TMPro; // Standard for modern Unity text UI
+using TMPro;
 
 public class ShopLookOut : MonoBehaviour
 {
     [Header("UI References")]
     public GameObject dialogueBox;
-    public TMP_Text dialogueText; // TextMeshPro text slot
+    public TMP_Text dialogueText;
     public GameObject signboardUI;
 
     [Header("Movement & Targets")]
     public Transform exitWaypoint;
+    public Transform shopLookArea; // Ensure this is NOT a child of the Coworker object in Hierarchy!
     public float walkSpeed = 2f;
+    public float turnSpeed = 5f;
 
     [Header("Dialogue Content")]
     [TextArea(3, 5)]
@@ -20,10 +21,31 @@ public class ShopLookOut : MonoBehaviour
 
     private bool isPlayerInZone = false;
     private bool hasInteracted = false;
+    private Transform playerTransform;
+
+    void Start()
+    {
+        // Hide Dialogue Box & Signboard immediately when scene starts
+        if (dialogueBox != null)
+        {
+            dialogueBox.SetActive(false);
+        }
+
+        if (signboardUI != null)
+        {
+            signboardUI.SetActive(false);
+        }
+    }
 
     void Update()
     {
-        // Press E to interact when standing near the coworker
+        // 1. Idle state: Face toward shop look area until interacted with
+        if (!hasInteracted && shopLookArea != null)
+        {
+            LookAtTarget(shopLookArea.position);
+        }
+
+        // 2. Press E to interact when near
         if (isPlayerInZone && !hasInteracted && Input.GetKeyDown(KeyCode.E))
         {
             StartCoroutine(StartTakeoverSequence());
@@ -34,19 +56,19 @@ public class ShopLookOut : MonoBehaviour
     {
         hasInteracted = true;
 
-        // 1. Find player by Tag and disable movement components
+        // Find player by Tag
         GameObject player = GameObject.FindWithTag("Player");
         if (player != null)
         {
-            // Disables CharacterController if present
+            playerTransform = player.transform;
+
+            // Lock player movement components
             CharacterController charController = player.GetComponent<CharacterController>();
             if (charController != null) charController.enabled = false;
 
-            // Freezes Rigidbody physics if present
             Rigidbody rb = player.GetComponent<Rigidbody>();
             if (rb != null) rb.isKinematic = true;
 
-            // Disables custom movement scripts on the player object
             MonoBehaviour[] scripts = player.GetComponents<MonoBehaviour>();
             foreach (var script in scripts)
             {
@@ -54,7 +76,13 @@ public class ShopLookOut : MonoBehaviour
             }
         }
 
-        // 2. Show Dialogue Box and write message
+        // Turn to face the player face-to-face
+        if (playerTransform != null)
+        {
+            yield return StartCoroutine(TurnToFace(playerTransform.position));
+        }
+
+        // Show Dialogue Box
         if (dialogueBox != null)
         {
             dialogueBox.SetActive(true);
@@ -64,8 +92,8 @@ public class ShopLookOut : MonoBehaviour
             }
         }
 
-        // Wait 4 seconds for the player to read
-        yield return new WaitForSeconds(4f); 
+        // Wait 4 seconds for reading
+        yield return new WaitForSeconds(4f);
 
         // Hide Dialogue Box
         if (dialogueBox != null)
@@ -73,16 +101,15 @@ public class ShopLookOut : MonoBehaviour
             dialogueBox.SetActive(false);
         }
 
-        // 3. Coworker walks off-screen
+        // Coworker walks away
         yield return StartCoroutine(WalkToExit());
 
-        // 4. Show Signboard UI after she leaves
+        // Show Signboard UI
         if (signboardUI != null)
         {
             signboardUI.SetActive(true);
         }
 
-        // Hide coworker object after reaching target destination
         gameObject.SetActive(false);
     }
 
@@ -92,11 +119,42 @@ public class ShopLookOut : MonoBehaviour
 
         while (Vector3.Distance(transform.position, exitWaypoint.position) > 0.1f)
         {
+            LookAtTarget(exitWaypoint.position);
+
             transform.position = Vector3.MoveTowards(
-                transform.position, 
-                exitWaypoint.position, 
+                transform.position,
+                exitWaypoint.position,
                 walkSpeed * Time.deltaTime
             );
+            yield return null;
+        }
+    }
+
+    private void LookAtTarget(Vector3 targetPosition)
+    {
+        Vector3 direction = (targetPosition - transform.position).normalized;
+        direction.y = 0; // Keep horizontal plane rotation only
+
+        if (direction.sqrMagnitude > 0.001f) // Safeguard against spinning when too close
+        {
+            Quaternion targetRotation = Quaternion.LookRotation(direction);
+            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, turnSpeed * Time.deltaTime);
+        }
+    }
+
+    private IEnumerator TurnToFace(Vector3 targetPosition)
+    {
+        Vector3 direction = (targetPosition - transform.position).normalized;
+        direction.y = 0;
+
+        if (direction.sqrMagnitude < 0.001f) yield break;
+
+        Quaternion targetRotation = Quaternion.LookRotation(direction);
+
+        // Rotate until facing roughly towards player
+        while (Quaternion.Angle(transform.rotation, targetRotation) > 5f)
+        {
+            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, turnSpeed * Time.deltaTime);
             yield return null;
         }
     }
