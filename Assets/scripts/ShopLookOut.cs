@@ -58,22 +58,19 @@ public class ShopLookOut : MonoBehaviour
 
         // Find player by Tag
         GameObject player = GameObject.FindWithTag("Player");
+        CharacterController charController = null;
+        Rigidbody rb = null;
+
         if (player != null)
         {
             playerTransform = player.transform;
 
-            // Lock player movement components
-            CharacterController charController = player.GetComponent<CharacterController>();
+            // Safely disable movement components
+            charController = player.GetComponent<CharacterController>();
             if (charController != null) charController.enabled = false;
 
-            Rigidbody rb = player.GetComponent<Rigidbody>();
+            rb = player.GetComponent<Rigidbody>();
             if (rb != null) rb.isKinematic = true;
-
-            MonoBehaviour[] scripts = player.GetComponents<MonoBehaviour>();
-            foreach (var script in scripts)
-            {
-                script.enabled = false;
-            }
         }
 
         // Turn to face the player face-to-face
@@ -104,6 +101,10 @@ public class ShopLookOut : MonoBehaviour
         // Coworker walks away
         yield return StartCoroutine(WalkToExit());
 
+        // Restore player movement
+        if (charController != null) charController.enabled = true;
+        if (rb != null) rb.isKinematic = false;
+
         // Show Signboard UI
         if (signboardUI != null)
         {
@@ -116,6 +117,9 @@ public class ShopLookOut : MonoBehaviour
     private IEnumerator WalkToExit()
     {
         if (exitWaypoint == null) yield break;
+
+        // Face exit direction before moving
+        yield return StartCoroutine(TurnToFace(exitWaypoint.position));
 
         while (Vector3.Distance(transform.position, exitWaypoint.position) > 0.1f)
         {
@@ -151,7 +155,7 @@ public class ShopLookOut : MonoBehaviour
 
         Quaternion targetRotation = Quaternion.LookRotation(direction);
 
-        // Rotate until facing roughly towards player
+        // Rotate until facing roughly towards target
         while (Quaternion.Angle(transform.rotation, targetRotation) > 5f)
         {
             transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, turnSpeed * Time.deltaTime);
